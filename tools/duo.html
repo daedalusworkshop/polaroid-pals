@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Local testing only: duo.html?code=TEST77 -> left hosts TEST77, right joins it a few seconds later.
+     In-game logs from both instances are relayed to the local server (tools/serve.js). -->
+<html><head><title>Duo test</title>
+<style>body{margin:0;background:#222;display:flex;gap:6px;height:100vh}iframe{flex:1;border:0;height:100%}</style>
+</head><body>
+<iframe id="a" allow="pointer-lock; clipboard-write"></iframe>
+<iframe id="b" allow="pointer-lock; clipboard-write"></iframe>
+<script>
+const code = new URLSearchParams(location.search).get("code") || "";
+const A = document.getElementById("a"), B = document.getElementById("b");
+A.src = code ? "index.html?host=" + code : "index.html";
+setTimeout(() => { B.src = code ? "index.html?join=" + code : "index.html"; }, code ? 9000 : 0);
+const sent = [0, 0];
+setInterval(() => {
+  [A, B].forEach((f, i) => {
+    const logs = (f.contentWindow && f.contentWindow.__logs) || [];
+    const fresh = logs.slice(sent[i]);
+    sent[i] = logs.length;
+    if (fresh.length) fetch("/log", { method: "POST", body: fresh.map((l) => (i ? "GUEST| " : "HOST | ") + l).join("\n") });
+  });
+}, 1000);
+</script>
+</body></html>
