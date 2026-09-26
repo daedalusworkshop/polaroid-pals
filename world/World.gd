@@ -11,6 +11,7 @@ const Materials := preload("res://world/Materials.gd")
 const Atmosphere := preload("res://world/Atmosphere.gd")
 const Player := preload("res://player/Player.gd")
 const Avatar := preload("res://player/Avatar.gd")
+const Movers := preload("res://world/Movers.gd")
 const POST := preload("res://shaders/post.gdshader")
 const BIOMES := {
 	"ruins": preload("res://world/biomes/Ruins.gd"),
@@ -165,6 +166,7 @@ func build(id: String, p_seed: int) -> void:
 
 
 func _extra_scene_bits() -> void:
+	Movers.populate(root3d, biome, mats)
 	if biome.has_method("build_extras"):
 		biome.build_extras(root3d, mats)
 

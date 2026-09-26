@@ -1,4 +1,6 @@
 extends "res://world/biomes/Biome.gd"
+
+const FF := preload("res://world/FacadeForge.gd")
 ## Tokyo backstreets — inspired by Yanaka / Shimokitazawa. Narrow lanes of little
 ## two-storey houses and shops, vending machines glowing on every corner, paper
 ## lanterns, tangled power lines, a sakura-lined canal, a neighbourhood shrine,
@@ -22,6 +24,7 @@ var canal_z := 0.0
 var rail_x := 0.0
 var shrine_block := Vector2i(-1, -1)
 var poles: Array = []       # pole tops for wires
+var _wall_col := Color.WHITE
 
 
 func _init(p_seed: int) -> void:
@@ -175,73 +178,119 @@ func _building(c: Vector3, w: float, d: float, yaw: float) -> void:
 	var fh := 3.0
 	var h := floors * fh
 	var wall: Color = pick(C_PLASTER)
+	_wall_col = wall
 	var base := Vector3(c.x, -0.3, c.z)
 	geo.box("solid", Transform3D(bs, base + Vector3(0, h * 0.5, 0)), Vector3(fw, h, fd), wall)
 	geo.col_box(Transform3D(bs, base + Vector3(0, h * 0.5, 0)), Vector3(fw, h, fd))
 	var front := fd * 0.5
 	var F := func(x: float, y: float, zoff: float) -> Vector3:
 		return base + bs * Vector3(x, y, front + zoff)
+	var right: Vector3 = bs.x
+	var n_front: Vector3 = bs.z
 	# ground floor
+	var gtiles: Array = []
+	var nb := maxi(1, int(round(fw / 2.6)))
+	match kind:
+		"shop":
+			for k in nb:
+				gtiles.append(FF.T_SHOP + rng.randi_range(0, 3))
+		"izakaya":
+			for k in nb:
+				gtiles.append(FF.T_SHOJI + rng.randi_range(0, 3))
+			gtiles[nb / 2] = FF.T_DOOR + 3
+		_:
+			for k in nb:
+				gtiles.append([FF.T_SMALL, FF.T_SHOJI, FF.T_WALL + 5, FF.T_WINDOW + rng.randi_range(0, 15)][rng.randi() % 4] + (rng.randi_range(0, 3) if k % 2 == 0 else 0))
+			gtiles[rng.randi() % nb] = FF.T_DOOR + rng.randi_range(0, 1)
+	_bays(F.call(-fw * 0.5, 0.0, 0.0), right, n_front, fw, 0.0 + base.y, fh, gtiles)
 	match kind:
 		"shop", "izakaya":
-			var sf: Color = Color("f7dca0", 0.55) if kind == "shop" else Color("ffb870", 0.5)
-			geo.box("glow", Transform3D(bs, F.call(0, 1.3, 0.02)), Vector3(fw * 0.8, 2.2, 0.05), sf)
-			geo.box("solid", Transform3D(bs, F.call(0, 2.6, 0.05)), Vector3(fw * 0.86, 0.35, 0.12), C_WOODFRONT)
-			# striped awning
+			geo.box("solid", Transform3D(bs, F.call(0, 2.9, 0.05)), Vector3(fw * 0.96, 0.3, 0.12), C_WOODFRONT)
 			var aw: Color = pick([Color("3d6e8f"), Color("b8483e"), Color("3d7a55"), Color("d8a33a")])
-			geo.box("solid", Transform3D(bs * Basis(Vector3.RIGHT, 0.35), F.call(0, 2.75, 0.55)), Vector3(fw * 0.9, 0.06, 1.2), aw)
+			geo.box("solid", Transform3D(bs * Basis(Vector3.RIGHT, 0.35), F.call(0, 3.05, 0.55)), Vector3(fw * 0.9, 0.06, 1.2), aw)
+			for k in int(fw * 2.0):
+				if k % 2 == 0:
+					geo.box("solid", Transform3D(bs * Basis(Vector3.RIGHT, 0.35), F.call(-fw * 0.45 + k * 0.5 + 0.25, 3.06, 0.55)), Vector3(0.25, 0.07, 1.2), aw.lightened(0.45))
 			if kind == "izakaya":
-				# noren curtain + red lanterns
+				# noren that sways, red lanterns, a steaming vent
 				for k in 3:
-					geo.box("solid", Transform3D(bs, F.call(-0.6 + k * 0.6, 2.2, 0.15)), Vector3(0.55, 0.7, 0.02), Color("2b3350"))
+					geo.cloth(F.call(-0.9 + k * 0.62, 2.75, 0.22), right * 0.58, Vector3(0, -0.8, 0), Color("2b3350"))
 				for sx in [-fw * 0.4, fw * 0.4]:
 					var lp: Vector3 = F.call(sx, 2.3, 0.45)
 					geo.cyl("glow", lp - Vector3(0, 0.35, 0), lp + Vector3(0, 0.35, 0), 0.28, 0.28, 8, Color("e8453c", 0.85))
 					geo.cyl("solid", lp + Vector3(0, 0.35, 0), lp + Vector3(0, 0.42, 0), 0.2, 0.2, 6, Color("222222"))
 					geo.light(lp, Color(1.0, 0.45, 0.3), 6.0)
+				smoke_spots.append([F.call(fw * 0.3, h + 0.2, -fd * 0.4), "steam"])
 			else:
-				# shelves of goods visible through the window
-				for k in 3:
-					geo.box("solid", Transform3D(bs, F.call(0, 0.5 + k * 0.6, -0.4)), Vector3(fw * 0.7, 0.08, 0.5), Color("8a6a4a"))
 				geo.light(F.call(0, 1.6, 1.0), Color(1.0, 0.85, 0.6), 6.0)
-			# a vertical sign on the corner with glyphs
+				# crates of produce out front
+				if rng.randf() < 0.5:
+					for k in 3:
+						var cp: Vector3 = F.call(-fw * 0.3 + k * 0.7, 0.3, 0.6)
+						geo.box("solid", Transform3D(bs, cp), Vector3(0.6, 0.35, 0.45), Color("b08a5a"))
+						geo.box("solid", Transform3D(bs, cp + Vector3(0, 0.2, 0)), Vector3(0.5, 0.08, 0.35), pick([Color("e84a3a"), Color("f2a030"), Color("7ac24a"), Color("f2d24a")]))
 			if rng.randf() < 0.75:
 				var sc: Color = pick(C_SIGN)
 				sc.a = 0.85
-				var sp: Vector3 = F.call(fw * 0.5 - 0.2, 3.6 + rng.randf() * 1.5, 0.5)
-				var rows := rng.randi_range(3, 5)
-				_sign(sp, bs, rows, sc)
+				var sp: Vector3 = F.call(fw * 0.5 - 0.2, 3.9 + rng.randf() * 1.5, 0.5)
+				_sign(sp, bs, rng.randi_range(3, 5), sc)
 		_:
-			# house: sliding door, small window, potted plants
-			geo.box("solid", Transform3D(bs, F.call(-fw * 0.2, 1.1, 0.03)), Vector3(1.6, 2.1, 0.06), C_WOODFRONT)
-			geo.box("glow", Transform3D(bs, F.call(-fw * 0.2, 1.5, 0.07)), Vector3(1.3, 0.8, 0.02), Color("f2d49a", 0.35))
-			geo.box("glow", Transform3D(bs, F.call(fw * 0.22, 1.5, 0.03)), Vector3(1.2, 0.9, 0.05), Color("e8c88a", 0.25))
-			geo.box("solid", Transform3D(bs, F.call(fw * 0.22, 1.05, 0.1)), Vector3(1.3, 0.08, 0.18), Color("d8d2c4"))
-			for k in rng.randi_range(2, 5):
-				var pp: Vector3 = F.call(-fw * 0.45 + k * 0.45, 0.0, 0.45)
-				var pr := rng.randf_range(0.15, 0.25)
-				geo.cyl("solid", pp, pp + Vector3(0, pr * 1.6, 0), pr * 0.8, pr, 6, pick([Color("b86a45"), Color("6e7280"), Color("d8d0c0")]))
+			for k in rng.randi_range(2, 6):
+				var pp: Vector3 = F.call(-fw * 0.45 + k * 0.42, 0.0, 0.45)
+				var pr := rng.randf_range(0.15, 0.28)
+				geo.cyl("solid", pp, pp + Vector3(0, pr * 1.6, 0), pr * 0.8, pr, 6, pick([Color("b86a45"), Color("6e7280"), Color("d8d0c0"), Color("4a5a7a")]))
 				geo.leaf_ball("bush", pp + Vector3(0, pr * 2.2, 0), Vector3(pr * 1.6, pr * 1.8, pr * 1.6), 6, pick([Color("4f8a45"), Color("3f7a44"), Color("6a9a4a")]), rng, 0.8, 0.5)
+			if rng.randf() < 0.4:
+				# umbrellas leaning by the door
+				for k in rng.randi_range(1, 3):
+					var up: Vector3 = F.call(fw * 0.35 + k * 0.15, 0.0, 0.25)
+					geo.cyl("solid", up, up + Vector3(0.12, 0.9, 0.05), 0.07, 0.02, 5, pick([Color("3d6e8f"), Color("e8e4dc"), Color("b8483e"), Color("2a2a30")]))
 			geo.light(F.call(-fw * 0.2, 2.4, 0.6), Color(1.0, 0.85, 0.6), 4.5)
 	# upper floors
 	for fl in range(1, floors):
-		var y := fl * fh + 1.4
-		var nwin := maxi(1, int(fw / 2.4))
-		for k in nwin:
-			var x := -fw * 0.5 + (k + 0.5) * fw / nwin
-			var lit := rng.randf() < 0.6
-			geo.box("glow", Transform3D(bs, F.call(x, y, 0.03)), Vector3(1.2, 1.1, 0.05), Color("f2cf8a", 0.25) if lit else Color("7a8aa8", 0.35))
-			geo.box("solid", Transform3D(bs, F.call(x, y - 0.62, 0.08)), Vector3(1.35, 0.1, 0.16), wall.darkened(0.2))
+		var tiles: Array = []
+		for k in nb:
+			tiles.append(FF.T_WINDOW + rng.randi_range(0, 15) if rng.randf() < 0.8 else FF.T_WALL + rng.randi_range(0, 7))
+		_bays(F.call(-fw * 0.5, 0.0, 0.0), right, n_front, fw, base.y + fl * fh, fh, tiles)
 		if kind == "apartment":
-			geo.box("solid", Transform3D(bs, F.call(0, fl * fh + 0.1, 0.6)), Vector3(fw, 0.15, 1.2), wall.darkened(0.1))
-			geo.box("solid", Transform3D(bs, F.call(0, fl * fh + 0.65, 1.15)), Vector3(fw, 1.0, 0.08), wall.darkened(0.15))
-			if rng.randf() < 0.5:
-				# laundry pole with a towel or two
-				geo.cyl("solid", F.call(-fw * 0.45, fl * fh + 1.9, 0.9), F.call(fw * 0.45, fl * fh + 1.9, 0.9), 0.03, 0.03, 4, Color("c0c0c8"), false)
-				for t in rng.randi_range(1, 3):
-					geo.box("solid", Transform3D(bs, F.call(-fw * 0.3 + t * 0.9, fl * fh + 1.55, 0.9)), Vector3(0.6, 0.65, 0.02), pick([Color("f4f1ea"), Color("9ac0e0"), Color("f0b8c0"), Color("f2d57a")]))
-		if rng.randf() < 0.45:
-			geo.box("solid", Transform3D(bs, F.call(fw * 0.5 - 0.6, fl * fh + 0.5, 0.25)), Vector3(0.8, 0.55, 0.4), Color("e4e4e0"))
+			geo.box("solid", Transform3D(bs, F.call(0, fl * fh + 0.1 + base.y, 0.6)), Vector3(fw, 0.15, 1.2), wall.darkened(0.1))
+			geo.box("solid", Transform3D(bs, F.call(0, fl * fh + 0.62 + base.y, 1.15)), Vector3(fw, 0.9, 0.08), wall.darkened(0.15))
+			if rng.randf() < 0.6:
+				# laundry pole with towels and shirts fluttering
+				var ly := fl * fh + 2.0 + base.y
+				geo.cyl("solid", F.call(-fw * 0.45, ly, 0.9), F.call(fw * 0.45, ly, 0.9), 0.03, 0.03, 4, Color("c0c0c8"), false)
+				for t in rng.randi_range(2, 4):
+					var tw := rng.randf_range(0.4, 0.7)
+					geo.cloth(F.call(-fw * 0.4 + t * 0.85, ly - 0.02, 0.9), right * tw, Vector3(0, -rng.randf_range(0.5, 0.8), 0),
+						pick([Color("f4f1ea"), Color("9ac0e0"), Color("f0b8c0"), Color("f2d57a"), Color("a8d8a8"), Color("e8e0f0")]))
+	# side walls: small windows, pipes, meters, posters, ivy
+	for side in [-1.0, 1.0]:
+		var n_side: Vector3 = bs.x * side
+		var r_side: Vector3 = Vector3.UP.cross(n_side).normalized()
+		var bl: Vector3 = base + bs * Vector3(side * fw * 0.5, 0, 0) - r_side * fd * 0.5
+		var ns := maxi(1, int(round(fd / 2.6)))
+		for fl in floors:
+			var tiles: Array = []
+			for k in ns:
+				var roll2 := rng.randf()
+				if roll2 < 0.35:
+					tiles.append(-1)
+				elif roll2 < 0.65:
+					tiles.append(FF.T_WALL + rng.randi_range(0, 7))
+				elif roll2 < 0.85:
+					tiles.append(FF.T_SMALL + rng.randi_range(0, 3))
+				else:
+					tiles.append(FF.T_WINDOW + rng.randi_range(0, 15))
+			_bays(bl, r_side, n_side, fd, base.y + fl * fh, fh, tiles)
+	# drainpipe down a front corner
+	if rng.randf() < 0.55:
+		var dp: Vector3 = F.call(fw * 0.5 - 0.15, 0.0, 0.12)
+		geo.cyl("solid", dp + Vector3(0, base.y, 0), dp + Vector3(0, h + base.y, 0), 0.06, 0.06, 5, pick([Color("b8bcc4"), Color("7a6a5a"), Color("5a6a7a")]))
+	# outdoor AC units on the side
+	if rng.randf() < 0.5:
+		var ap: Vector3 = base + bs * Vector3(fw * 0.5 + 0.3, 0.35, fd * 0.2)
+		geo.box("solid", Transform3D(bs, ap), Vector3(0.55, 0.6, 0.8), Color("e4e4e0"))
+		geo.cyl("solid", ap + bs * Vector3(0.28, 0, 0), ap + bs * Vector3(0.3, 0, 0), 0.22, 0.22, 8, Color("5a5c64"))
 	# roof
 	if kind == "house" or (kind == "izakaya" and rng.randf() < 0.7):
 		geo.roof("solid", base + Vector3(0, h, 0), fw, fd, fd * 0.3, yaw, pick(C_ROOF), wall.darkened(0.08), 0.5)
@@ -250,6 +299,15 @@ func _building(c: Vector3, w: float, d: float, yaw: float) -> void:
 		if rng.randf() < 0.35:
 			geo.cyl("solid", base + bs * Vector3(fw * 0.25, h + 0.6, -fd * 0.2), base + bs * Vector3(fw * 0.25, h + 2.2, -fd * 0.2), 0.7, 0.7, 8, Color("c8ccd4"))
 	claim(c, maxf(fw, fd) * 0.45)
+
+
+func _bays(bl: Vector3, r: Vector3, n: Vector3, width: float, y: float, height: float, tiles: Array) -> void:
+	var bw := width / tiles.size()
+	for k in tiles.size():
+		if tiles[k] < 0:
+			continue
+		var p := Vector3(bl.x, y, bl.z) + r * (k * bw)
+		geo.facade(p, bw, height, n, tiles[k], _wall_col)
 
 
 func _sign(top: Vector3, bs: Basis, rows: int, col: Color) -> void:
@@ -505,7 +563,7 @@ func _pole(p: Vector3) -> void:
 	var lamp := p + Vector3(0.9, 5.0, 0)
 	geo.cyl("solid", p + Vector3(0, 5.2, 0), lamp + Vector3(0, 0.1, 0), 0.04, 0.04, 4, Color("6a6a6a"), false)
 	geo.block("glow", lamp - Vector3(0, 0.15, 0), Vector3(0.45, 0.12, 0.25), Color("fff0c8", 0.5))
-	geo.light(lamp - Vector3(0, 0.5, 0), Color(1.0, 0.9, 0.7), 9.0)
+	geo.light(lamp - Vector3(0, 0.5, 0), Color(1.0, 0.9, 0.7), 7.0)
 	geo.col_cyl(p, 0.18, 4.0)
 	poles.append(top - Vector3(0, 0.5, 0))
 
@@ -523,6 +581,12 @@ func _wires() -> void:
 					var mid := (a + b) * 0.5 + off + Vector3(0, -0.7, 0)
 					geo.cyl("solid", a + off, mid, 0.022, 0.022, 3, Color("25252b"), false)
 					geo.cyl("solid", mid, b + off, 0.022, 0.022, 3, Color("25252b"), false)
+					if rng.randf() < 0.12:
+						for bi in rng.randi_range(1, 4):
+							var bp: Vector3 = (a + off).lerp(mid, rng.randf_range(0.2, 0.95)) + Vector3(0, 0.1, 0)
+							var bc: Color = pick([Color("3a3a42"), Color("6a5a4a"), Color("2a2a30")])
+							geo.box("solid", Transform3D(Basis(Vector3.UP, rng.randf() * TAU), bp), Vector3(0.1, 0.12, 0.18), bc)
+							geo.box("solid", Transform3D(Basis(), bp + Vector3(0, 0.1, 0)), Vector3(0.08, 0.08, 0.08), bc)
 
 
 func _vending(p: Vector3) -> void:

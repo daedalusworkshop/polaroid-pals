@@ -5,7 +5,7 @@ extends RefCounted
 const CHUNK := 40.0
 ## Layers that share another layer's material.
 const LAYER_MAT := {"bush": "leaf", "canopy": "leaf"}
-const NO_SHADOW := ["glow", "sign", "water", "falls", "grass", "flower"]
+const NO_SHADOW := ["glow", "sign", "water", "falls", "grass", "flower", "facade"]
 ## Small stuff fades out at distance (metres).
 const VIS_RANGE := {"bush": 110.0, "fern": 70.0}
 
@@ -81,6 +81,40 @@ func card(layer: String, p: Array, normals: Array, col: Color, cols := []) -> vo
 		buf.n.append(normals[idx])
 		buf.c.append(cols[idx] if cols.size() == 4 else col)
 		buf.uv.append(uvs[idx])
+
+
+## One facade bay: a panel on a wall (bottom-left corner `bl`, outward normal `n`)
+## showing atlas tile `tile` over the wall colour. Right = UP x n, matching the shader.
+func facade(bl: Vector3, width: float, height: float, n: Vector3, tile: int, wall: Color) -> void:
+	var r := Vector3.UP.cross(n).normalized()
+	var a := bl + n * 0.02
+	var e := 0.5 / 256.0
+	var u0 := (tile % 8) / 8.0 + e
+	var u1 := (tile % 8 + 1) / 8.0 - e
+	var v0 := (tile / 8) / 8.0 + e
+	var v1 := (tile / 8 + 1) / 8.0 - e
+	quad("facade", a, a + r * width, a + r * width + Vector3.UP * height, a + Vector3.UP * height, wall, n,
+		Vector2(u0, v1), Vector2(u1, v1), Vector2(u1, v0), Vector2(u0, v0))
+
+
+## Hanging fabric (laundry, noren, flags): pinned along the top edge, free below.
+## Two-sided; the free edge flutters in the wind via the cloth material.
+func cloth(top_left: Vector3, right: Vector3, down: Vector3, col: Color, top_w := 0.0, bottom_w := 1.0) -> void:
+	var a := top_left
+	var b := top_left + right
+	var c := b + down
+	var d := a + down
+	var ta := top_w
+	var ca := Color(col, ta)
+	var cb := Color(col, ta)
+	var cc := Color(col, bottom_w)
+	var cd := Color(col, bottom_w)
+	var n := right.cross(down).normalized()
+	for s in [1.0, -1.0]:
+		var nn: Vector3 = n * s
+		var shade: Color = Color(1, 1, 1) if s > 0 else Color(0.85, 0.85, 0.85)
+		tri_n("cloth", a, b, c, nn, nn, nn, ca * shade, cb * shade, cc * shade, nn)
+		tri_n("cloth", a, c, d, nn, nn, nn, ca * shade, cc * shade, cd * shade, nn)
 
 
 ## Box centred on xf.origin. `top` overrides the top face colour.

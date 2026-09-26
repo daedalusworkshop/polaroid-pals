@@ -10,6 +10,7 @@ uniform float snow = 0.0;
 uniform float wet = 0.0;
 uniform float depth_mode = 0.0;       // photo depth pass
 uniform float band_soft = 0.02;
+uniform float sway = 0.0;             // cloth: vertex alpha = how free the vertex is to flutter
 
 varying vec3 w_pos;
 varying vec3 w_nrm;
@@ -22,6 +23,11 @@ float vnoise(vec2 p) {
 }
 
 void vertex() {
+	if (sway > 0.0) {
+		vec3 p = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		float ph = TIME * 2.3 + p.x * 0.8 + p.z * 0.6;
+		VERTEX += vec3(sin(ph), 0.0, cos(ph * 0.8)) * 0.07 * COLOR.a * sway;
+	}
 	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	w_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }

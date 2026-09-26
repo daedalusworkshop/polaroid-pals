@@ -1,4 +1,6 @@
 extends "res://world/biomes/Biome.gd"
+
+const FF := preload("res://world/FacadeForge.gd")
 ## Alpine valley — inspired by Lauterbrunnen, Switzerland. A U-shaped valley of
 ## wildflower meadows between sheer cliffs streaming with waterfalls, a river,
 ## chalets with geranium boxes, a white church, grazing cows, pine forests and
@@ -261,7 +263,7 @@ func _chalet(base: Vector3, yaw: float) -> void:
 	var fh := 2.7
 	var wood: Color = pick(C_WOOD)
 	var roof: Color = pick(C_ROOF)
-	var shutter: Color = pick(C_SHUTTER)
+	var style := rng.randi_range(0, 7)
 	var ground := base.y - 0.6
 	for c in [Vector3(-w, 0, -dpt), Vector3(w, 0, -dpt), Vector3(w, 0, dpt), Vector3(-w, 0, dpt)]:
 		var q: Vector3 = base + bs * (c * 0.5)
@@ -288,17 +290,21 @@ func _chalet(base: Vector3, yaw: float) -> void:
 		for k in nwin:
 			var x := -w * 0.5 + (k + 0.5) * (w / nwin)
 			var wp: Vector3 = b0 + bs * Vector3(x, y, front)
-			var win := Color("f6d68a", 0.3) if fl > 0 else Color("e8c47a", 0.3)
-			geo.box("glow", Transform3D(bs, wp + bs * Vector3(0, 0.55, 0)), Vector3(0.9, 1.0, 0.05), win)
-			geo.box("solid", Transform3D(bs, wp + bs * Vector3(0, 0.55, 0.02)), Vector3(1.05, 0.1, 0.08), Color("f2ede2"))
-			geo.box("solid", Transform3D(bs, wp + bs * Vector3(0, 0.55, 0.02)), Vector3(0.08, 1.1, 0.08), Color("f2ede2"))
-			for sx: float in [-0.72, 0.72]:
-				geo.box("solid", Transform3D(bs, wp + bs * Vector3(sx, 0.55, 0.04)), Vector3(0.45, 1.1, 0.06), shutter)
-			if fl > 0 or rng.randf() < 0.5:
-				var box_p: Vector3 = wp + bs * Vector3(0, 0.0, 0.25)
-				geo.box("solid", Transform3D(bs, box_p), Vector3(1.1, 0.25, 0.3), wood.darkened(0.25))
-				geo.leaf_ball("bush", box_p + Vector3(0, 0.28, 0), Vector3(0.6, 0.22, 0.22), 7, pick([Color("e8484f"), Color("f06d8a"), Color("e84a3a")]), rng, 0.7, 0.4)
+			var tile := FF.T_CHALET + style if fl > 0 else FF.T_SMALL + rng.randi_range(0, 3)
+			var wall_c: Color = wood if fl > 0 else C_STONE
+			var bl: Vector3 = wp - bs.x * 1.1 + Vector3(0, -0.55, 0)
+			geo.facade(bl, 2.2, 2.0, bs.z, tile, wall_c)
+			if fl > 0:
+				var box_p: Vector3 = wp + bs * Vector3(0, -0.2, 0.18)
+				geo.leaf_ball("bush", box_p + Vector3(0, 0.1, 0), Vector3(0.62, 0.18, 0.16), 7, pick([Color("e8484f"), Color("f06d8a"), Color("e84a3a")]), rng, 0.6, 0.4)
 				geo.light(wp + bs * Vector3(0, 0.6, 0.8), Color(1.0, 0.8, 0.5), 5.0)
+	for side: float in [-1.0, 1.0]:
+		var sn: Vector3 = bs.x * side
+		var sr: Vector3 = Vector3.UP.cross(sn).normalized()
+		geo.facade(b0 + bs * Vector3(side * (w * 0.5 + 0.05), stone_h + 0.35, 0) - sr * 1.1, 2.2, 2.0, sn, FF.T_CHALET + (style + 1) % 8, wood)
+	# a Swiss flag on some houses
+	if rng.randf() < 0.3:
+		_flag(b0 + bs * Vector3(w * 0.5 + 1.5, 0, dpt * 0.5 + 1.0) + Vector3(0, base.y - b0.y, 0), 6.5)
 	# wrap-around balcony on the upper floor
 	if floors >= 2:
 		var by := stone_h - 0.05
@@ -311,6 +317,7 @@ func _chalet(base: Vector3, yaw: float) -> void:
 	geo.box("solid", Transform3D(bs, b0 + bs * Vector3(w * 0.3, stone_h * 0.5 - 0.1, front)), Vector3(1.1, 2.0, 0.08), wood.darkened(0.35))
 	var ch: Vector3 = eave + bs * Vector3(-w * 0.25, w * 0.2, -dpt * 0.2)
 	geo.block("solid", ch, Vector3(0.7, 1.6, 0.7), C_STONE.darkened(0.1))
+	smoke_spots.append([ch + Vector3(0, 1.7, 0), "smoke"])
 	if rng.randf() < 0.6:
 		for k in 6:
 			geo.cyl("solid", b0 + bs * Vector3(-w * 0.5 - 0.5, stone_h * 0.3 + (k % 3) * 0.3, -dpt * 0.3 + (k / 3) * 0.3 - 0.3),
@@ -367,6 +374,7 @@ func _church(pos: Vector2) -> void:
 		var a := TAU * k / 12.0
 		geo.block("solid", at(p.x + cos(a) * 13.0, p.z + sin(a) * 13.0) - Vector3(0, 0.3, 0), Vector3(3.2, 0.9, 0.5), C_STONE, -a + PI * 0.5)
 	geo.light(st + Vector3(0, 11.0, 2.5), Color(1.0, 0.85, 0.6), 9.0)
+	_flag(at(p.x + 11.0, p.z + 9.0), 8.0)
 	photo_spots.append([at(p.x - 30.0, p.z - 20.0), "church and falls"])
 
 
@@ -517,3 +525,17 @@ func build_extras(root: Node3D, mats) -> void:
 		mist.mesh = q
 		mist.position = f[1] + Vector3(0, 1.0, 0)
 		root.add_child(mist)
+
+
+## A flagpole with a fluttering Swiss flag.
+func _flag(base: Vector3, h: float) -> void:
+	geo.cyl("solid", base - Vector3(0, 0.3, 0), base + Vector3(0, h, 0), 0.05, 0.04, 5, Color("e8e8e8"))
+	var top := base + Vector3(0, h - 0.1, 0.05)
+	var r := Vector3(1.4, 0, 0)
+	var d := Vector3(0, -1.0, 0)
+	geo.cloth(top, r, d, Color("d8342c"), 0.5, 0.5)
+	# the white cross, a hair in front on both sides
+	for s: float in [0.012, -0.012]:
+		geo.cloth(top + Vector3(0.58, -0.15, s), Vector3(0.24, 0, 0), Vector3(0, -0.7, 0), Color("f4f2ee"), 0.5, 0.5)
+		geo.cloth(top + Vector3(0.35, -0.38, s), Vector3(0.7, 0, 0), Vector3(0, -0.24, 0), Color("f4f2ee"), 0.5, 0.5)
+	geo.col_cyl(base, 0.08, h)

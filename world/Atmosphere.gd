@@ -265,6 +265,7 @@ func apply(t: float, weather: String, delta := 0.0) -> void:
 	mats.set_all("wet", _wet)
 	var water_sky := hor.lerp(top, 0.3)
 	mats.get_mat("water").set_shader_parameter("sky", water_sky)
+	mats.get_mat("facade").set_shader_parameter("sky_col", water_sky)
 	var wl := lerpf(1.0, 0.35, night)
 	mats.get_mat("water").set_shader_parameter("light", wl)
 	mats.get_mat("falls").set_shader_parameter("light", wl)
@@ -303,7 +304,7 @@ func _update_pool(cp: Vector3) -> void:
 			l.global_position = sorted[i][0]
 			l.light_color = sorted[i][1]
 			l.omni_range = sorted[i][2]
-			l.light_energy = 1.6 * strength
+			l.light_energy = 1.05 * strength
 		else:
 			l.visible = false
 

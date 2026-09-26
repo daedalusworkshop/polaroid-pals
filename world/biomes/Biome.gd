@@ -13,6 +13,7 @@ var spawn_yaw := 0.0
 var ray_spots: Array = []            # [top: Vector3, width, length]
 var photo_spots: Array = []          # [Vector3, String]
 var water_level := -1000.0
+var smoke_spots: Array = []         # [Vector3, "smoke" | "steam"]
 var grass_tint := Color("5f9a45")
 var flower_colors: Array = [Color("ffffff"), Color("d8c8ff")]
 var flower_amount := 0.1

@@ -8,6 +8,8 @@ const FOLIAGE := preload("res://shaders/foliage.gdshader")
 const GLOW := preload("res://shaders/glow.gdshader")
 const WATER := preload("res://shaders/water.gdshader")
 const GODRAY := preload("res://shaders/godray.gdshader")
+const FACADE := preload("res://shaders/facade.gdshader")
+const FacadeForge := preload("res://world/FacadeForge.gd")
 
 var by_layer := {}      # layer name -> ShaderMaterial
 var extra: Array = []   # other materials that take the shared uniforms
@@ -58,6 +60,15 @@ func _init(seed: int = 1) -> void:
 	by_layer["falls"] = falls
 
 	godray = _mk(GODRAY)
+
+	var facade := _mk(FACADE)
+	facade.set_shader_parameter("atlas", FacadeForge.atlas(seed + 4))
+	by_layer["facade"] = facade
+
+	var cloth := _mk(TOON)
+	cloth.set_shader_parameter("sway", 1.0)
+	by_layer["cloth"] = cloth
+	sign.set_shader_parameter("flicker", 1.0)
 
 
 func _mk(shader: Shader) -> ShaderMaterial:
